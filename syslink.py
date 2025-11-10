@@ -51,6 +51,7 @@ class SysLink:
 
             loginText = json.loads(loginRes.text)
             login_msg=loginText['msg']
+            st.write(loginText)
             if loginText['code'] == 200:
                 login_flag = True
                 loginAuthorization = loginText['data']
