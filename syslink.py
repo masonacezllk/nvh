@@ -1,28 +1,13 @@
-import xml.etree.ElementTree as ET
-import struct
 import pandas as pd
-import numpy as np
 import requests
-import glob
 import json
-import shutil
-import optparse
 import base64
-from datetime import datetime, timedelta
-import pandas as pd
-import locale
-import numpy as np
-from numpy import pi, polymul
-import os,re
-import time,requests
-import json,math
-from collections import Counter
-from textwrap import fill
-import io
-import zlib
-import socket
-import msgpack
-from concurrent.futures import ProcessPoolExecutor,ThreadPoolExecutor
+import os
+from datetime import datetime
+
+# 系统URL配置 - 使用环境变量，默认为内网地址
+SYS_BASE_URL = os.environ.get('SYS_BASE_URL', 'http://192.168.133.34:8181')
+TASK_BASE_URL = os.environ.get('TASK_BASE_URL', 'http://192.168.133.34:7070')
 
 
 class SysLink:
@@ -39,17 +24,17 @@ class SysLink:
 
         try:
             # 生成验证码
-            captchIamgeUrl = 'http://192.168.133.34:8181/ssiboot/admin/captchaImage'
-            captchHost = '192.168.133.34:8181'
-            captchReferer = 'http://192.168.133.34:8181/'
+            captchIamgeUrl = f'{SYS_BASE_URL}/ssiboot/admin/captchaImage'
+            captchHost = SYS_BASE_URL.replace('http://', '')
+            captchReferer = f'{SYS_BASE_URL}/'
             captchIamgeHead = self.sysHeadGen(None, None, captchHost, captchReferer, 'undefined', '/login',
-                                              'http://192.168.133.34:8181/#/login')
+                                              f'{SYS_BASE_URL}/#/login')
             captchIamgeRes = requests.get(
                 captchIamgeUrl, headers=captchIamgeHead, timeout=10)
             captchIamgeText = json.loads(captchIamgeRes.text)
 
             # 登录任务单系统
-            loginUrl = 'http://192.168.133.34:8181/ssiboot/admin/login'
+            loginUrl = f'{SYS_BASE_URL}/ssiboot/admin/login'
 
             passwordo = passwordin + datetime.now().strftime('%Y%m%d')
             password = str(base64.b64encode(
@@ -99,7 +84,7 @@ class SysLink:
         return sysHead
 
     def get_user_info(self, loginAuthorization):
-        url = "http://192.168.133.34:8181/ssiboot/admin/getInfo"
+        url = f"{SYS_BASE_URL}/ssiboot/admin/getInfo"
         headers = {
             "accept": "application/json, text/plain, */*",
             "accept-encoding": "gzip, deflate",
@@ -109,22 +94,22 @@ class SysLink:
             "connection": "keep-alive",
             "cookie": "Authorization="+loginAuthorization,
             "pragma": "no-cache",
-            "referer": "http://192.168.133.34:8181/",
+            "referer": f"{SYS_BASE_URL}/",
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36 Edg/137.0.0.0",
             "version": "v0.3.0",
             "windowhash": "/login",
-            "windowhref": "http://192.168.133.34:8181/#/login"
+            "windowhref": f"{SYS_BASE_URL}/#/login"
         }
         response = requests.get(url, headers=headers)
         user_info = json.loads(response.text)
         return user_info
 
     def get_task_list(self, loginAuthorization, username):
-        searchTaskUrl = 'http://192.168.133.34:7070/ssiboot/admin/nast/test/result/list'
-        searchTaskHost = '192.168.133.34:7070'
-        searchTaskReferer = 'http://192.168.133.34:7070/'
+        searchTaskUrl = f'{TASK_BASE_URL}/ssiboot/admin/nast/test/result/list'
+        searchTaskHost = TASK_BASE_URL.replace('http://', '')
+        searchTaskReferer = f'{TASK_BASE_URL}/'
         searchTaskHash = '/checkAndTest/triallResManage'
-        searchTaskHerf = 'http://192.168.133.34:7070/#/checkAndTest/triallResManage'
+        searchTaskHerf = f'{TASK_BASE_URL}/#/checkAndTest/triallResManage'
         searchTaskCookie = 'Authorization=' + loginAuthorization
         searchTaskHead = self.sysHeadGen(loginAuthorization, searchTaskCookie, searchTaskHost, searchTaskReferer,
                                          username, searchTaskHash, searchTaskHerf)
@@ -148,86 +133,83 @@ class SysLink:
         report_number = []
         report_item_name = []
         check_flag = False
-        try:
-            searchTaskText = task_result
-            # 获取报告号列表
-            searchTaskHost = '192.168.133.34:7070'
-            searchTaskReferer = 'http://192.168.133.34:7070/'
-            searchTaskCookie = 'Authorization=' + loginAuthorization
 
-            taskOrderId = searchTaskText['rows'][idx]['taskOrderId']
-            taskDepartmentId = searchTaskText['rows'][idx]['taskDepartmentId']
-            taskDepartmentSub = searchTaskText['rows'][idx]['departmentTaskOrderSub']
-            checkTypeId = searchTaskText['rows'][idx]['checkTypeId']
-            projectTypeId = searchTaskText['rows'][idx]['projectTypeId']
-            taskOrderName = searchTaskText['rows'][idx]['taskOrderName'].encode(
-                'utf-8').decode('latin-1')
-            reportUrl = 'http://192.168.133.34:7070/ssiboot/admin/reportcode/querymakereport?taskOrderId=' + \
-                taskOrderId + '&taskDepartmentId=' + taskDepartmentId
-            reportHash = '/checkAndTest/triallResManage/report'
-            reportHerf = 'http://192.168.133.34:7070/#/checkAndTest/triallResManage/report?taskOrderId=' + \
-                taskOrderId + '&taskDepartmentId=' + taskDepartmentId + \
-                '&taskDepartmentSub=' + taskDepartmentSub + '&taskOrderName=' + taskOrderName
-            reportCookie = 'Authorization=' + loginAuthorization
-            reportHead = self.sysHeadGen(loginAuthorization, reportCookie, searchTaskHost, searchTaskReferer, username,
-                                         reportHash, reportHerf)
-            reportRes = requests.get(reportUrl, headers=reportHead, timeout=10)
-            reportText = json.loads(reportRes.text)
-            if reportText['code'] == 200:
-                # 加载报告号
-                report_list = reportText['data']['nastTaskDeptVos'][0]['nastTaskDeptCheckItemVos']
-                report_number = []
-                report_item_name = []
-                for j in range(len(report_list)):
-                    try:
-                        cur_item = report_list[j]['checkReportDtos']
-                        report_item_name.append(
-                            report_list[j]['checkItemName'])
-                        for k in range(len(cur_item)):
-                            report_number.append(cur_item[k]['reportCode'])
+        searchTaskText = task_result
+        # 获取报告号列表
+        searchTaskHost = TASK_BASE_URL.replace('http://', '')
+        searchTaskReferer = f'{TASK_BASE_URL}/'
+        searchTaskCookie = 'Authorization=' + loginAuthorization
 
-                    except:
-                        temp = 0
+        taskOrderId = searchTaskText['rows'][idx]['taskOrderId']
+        taskDepartmentId = searchTaskText['rows'][idx]['taskDepartmentId']
+        taskDepartmentSub = searchTaskText['rows'][idx]['departmentTaskOrderSub']
+        checkTypeId = searchTaskText['rows'][idx]['checkTypeId']
+        projectTypeId = searchTaskText['rows'][idx]['projectTypeId']
+        taskOrderName = searchTaskText['rows'][idx]['taskOrderName'].encode(
+            'utf-8').decode('latin-1')
+        reportUrl = f'{TASK_BASE_URL}/ssiboot/admin/reportcode/querymakereport?taskOrderId=' + \
+            taskOrderId + '&taskDepartmentId=' + taskDepartmentId
+        reportHash = '/checkAndTest/triallResManage/report'
+        reportHerf = f'{TASK_BASE_URL}/#/checkAndTest/triallResManage/report?taskOrderId=' + \
+            taskOrderId + '&taskDepartmentId=' + taskDepartmentId + \
+            '&taskDepartmentSub=' + taskDepartmentSub + '&taskOrderName=' + taskOrderName
+        reportCookie = 'Authorization=' + loginAuthorization
+        reportHead = self.sysHeadGen(loginAuthorization, reportCookie, searchTaskHost, searchTaskReferer, username,
+                                        reportHash, reportHerf)
+        reportRes = requests.get(reportUrl, headers=reportHead, timeout=10)
+        reportText = json.loads(reportRes.text)
+        if reportText['code'] == 200:
+            # 加载报告号
+            report_list = reportText['data']['nastTaskDeptVos'][0]['nastTaskDeptCheckItemVos']
+            report_number = []
+            report_item_name = []
+            for j in range(len(report_list)):
+                try:
+                    cur_item = report_list[j]['checkReportDtos']
+                    report_item_name.append(
+                        report_list[j]['checkItemName'])
+                    for k in range(len(cur_item)):
+                        report_number.append(cur_item[k]['reportCode'])
 
-                # 查询任务单信息
-                infoUrl = 'http://192.168.133.34:7070/ssiboot/admin/nast/test/schedule/taskOrderInfo/' + \
-                    taskDepartmentId + '/' + taskOrderId
-                infoHash = '/taskManagement/detail'
-                infoHerf = 'http://192.168.133.34:7070/#/taskManagement/detail?departmentId=' + taskDepartmentId + \
-                    '&taskOrderId=' + taskOrderId + '&from=/checkAndTest/trialExcution'
-                infoHead = self.sysHeadGen(loginAuthorization, searchTaskCookie, searchTaskHost, searchTaskReferer,
-                                           username, infoHash, infoHerf)
-                infoRes = requests.get(infoUrl, headers=infoHead, timeout=10)
-                infoText = json.loads(infoRes.text)
+                except:
+                    temp = 0
 
-                # 查询订单信息
-                orderUrl = 'http://192.168.133.34:7070/ssiboot/admin/nast/order/' + str(infoText['data']['orderId'])
-                orderHash = '/taskManagement/detail'
-                orderHerf = 'http://192.168.133.34:7070/#/taskManagement/detail?departmentId=' + taskDepartmentId + \
-                    '&taskOrderId=' + taskOrderId + '&from=/taskManagement/taskTracking'
-                orderHead = self.sysHeadGen(loginAuthorization, searchTaskCookie, searchTaskHost, searchTaskReferer,
-                                           username, orderHash, orderHerf)
-                orderRes = requests.get(orderUrl, headers=orderHead, timeout=10)
-                orderText = json.loads(orderRes.text)
+            # 查询任务单信息
+            infoUrl = f'{TASK_BASE_URL}/ssiboot/admin/nast/test/schedule/taskOrderInfo/' + \
+                taskDepartmentId + '/' + taskOrderId
+            infoHash = '/taskManagement/detail'
+            infoHerf = f'{TASK_BASE_URL}/#/taskManagement/detail?departmentId=' + taskDepartmentId + \
+                '&taskOrderId=' + taskOrderId + '&from=/checkAndTest/trialExcution'
+            infoHead = self.sysHeadGen(loginAuthorization, searchTaskCookie, searchTaskHost, searchTaskReferer,
+                                        username, infoHash, infoHerf)
+            infoRes = requests.get(infoUrl, headers=infoHead, timeout=10)
+            infoText = json.loads(infoRes.text)
 
-                # 查询试验员
-                testerUrl = 'http://192.168.133.34:7070/ssiboot/admin/task/tracking/detail/' + taskDepartmentId
-                testerRes = requests.get(
-                    testerUrl, headers=infoHead, timeout=10)
-                testerText = json.loads(testerRes.text)
+            # 查询订单信息
+            orderUrl = f'{TASK_BASE_URL}/ssiboot/admin/nast/order/' + str(infoText['data']['orderId'])
+            orderHash = '/taskManagement/detail'
+            orderHerf = f'{TASK_BASE_URL}/#/taskManagement/detail?departmentId=' + taskDepartmentId + \
+                '&taskOrderId=' + taskOrderId + '&from=/taskManagement/taskTracking'
+            orderHead = self.sysHeadGen(loginAuthorization, searchTaskCookie, searchTaskHost, searchTaskReferer,
+                                        username, orderHash, orderHerf)
+            orderRes = requests.get(orderUrl, headers=orderHead, timeout=10)
+            orderText = json.loads(orderRes.text)
 
-                if infoText['code'] == 200 and testerText['code'] == 200:
-                    check_flag = True
-                    table_data = self.refresh_task(infoText, testerText, orderText)
-                else:
-                    check_flag = False
-                    print(infoText['msg'] + ' ' + testerText['msg'])
+            # 查询试验员
+            testerUrl = f'{TASK_BASE_URL}/ssiboot/admin/task/tracking/detail/' + taskDepartmentId
+            testerRes = requests.get(
+                testerUrl, headers=infoHead, timeout=10)
+            testerText = json.loads(testerRes.text)
+
+            if infoText['code'] == 200 and testerText['code'] == 200:
+                check_flag = True
+                table_data = self.refresh_task(infoText, testerText, orderText)
             else:
                 check_flag = False
-                print(reportText['msg'])
-        except:
+                print(infoText['msg'] + ' ' + testerText['msg'])
+        else:
             check_flag = False
-            print('任务单信息刷新失败.')
+            print(reportText['msg'])
         return table_data, report_number, report_item_name, check_flag
 
     def refresh_task(self, infoText, testerText,orderText):
@@ -270,71 +252,3 @@ class SysLink:
         }
 
         return table_data
- 
-    def device_system_search(self,keyword):
-        # 计量系统
-        url = "http://192.168.133.24:8081/api/dssAuthentication/shake"
-        headers = {
-            "Connection": "keep-alive",
-            "Host": "192.168.133.24:8081",
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        }
-        # 请求体的内容
-        data = {
-            "authentication": "MDAxOjEyMw=="
-        }
-
-        # 发送POST请求
-        response = requests.post(url, headers=headers, json=data)
-
-        # 打印响应内容
-        response_data=json.loads(response.text)
-
-
-        url = "http://192.168.133.24:8081/api/db_query"
-        headers = {
-            "Connection": "keep-alive",
-            "Cookie": "diocp_sid=diocp_sid_24C9F39128064CC38F25155F4886E0CB;",
-            "Host": "192.168.133.24:8081",
-            "Content-Type": "application/msgpack",
-            "Accept-Encoding": "zlib",
-            "Accept": "application/msgpack",
-            "apicode": response_data['apicode']
-        }
-
-        # 选中的SQL查询语句
-        sql_query = "select  bzyqsyb_max_view.jdrq as jdsj1 ,bzyqsyb_max_view.jdzq,bzyqsyb_max_view.yxrq as yqrq ,bzyqsyb_max_view.zsbh as zsh1 ,bzyqsyb_max_view.jdjg as jdsj2,     isnull(ylyl ,0)-isnull(yqlqb_view.scnt,0)   as sysl,  yqlqb_view.scnt as lqzt,jddw1,yqbh, yqmc, yqmc1, qhgg, bqdd, bqdd1, zzc, glsj,  zsh2,   jddw2, zsh3, jdsj3, jddw3, dj, bgz, ksdm, yjts, by1, dyxz, zsh4, jdsj4,   jddw4, ccbh, fdz, clfw, dwbh,ylyl,syl1,syl2,syl3,syl4,syl5, bgsm, bzyqb.by2, bzyqb.by3,by4,by5,bzyqb.by6,bzyqb.by7,c.by2 as ycz1,c.by3 as ycz2, sid, docname, docname1, yqmcyw, bqddyw,bzlrrq,bzlrry ,dbo.[DateDifffto]('',case when jddw2='3' then bzyqb.yqrq else  bzyqsyb_max_view.yxrq end ) as gqts  from bzyqb left join (select * from (select yqid, ROW_NUMBER() over (partition by yqid order by jdrq desc ) as pxh ,by2 ,by3 from bzyqsyb ) b where b.pxh=1) c on c.yqid=bzyqb.sid left join yqlqb_view on yqlqb_view.wjid=bzyqb.sid left join bzyqsyb_max_view on bzyqsyb_max_view.yqid=bzyqb.sid where 1=1  and ( ((bzyqb.bgz like '%%" + keyword+"%%') or (bzyqb.bqdd like '%%"+keyword+"%%') or (bzyqb.bqdd1 like '%%"+keyword+"%%') or (bzyqb.bqddyw like '%%"+keyword+"%%') or (bzyqb.by1 like '%%"+keyword+"%%') or (bzyqb.by2 like '%%"+keyword+"%%') or (bzyqb.by3 like '%%"+keyword+"%%') or (bzyqb.by4 like '%%"+keyword+"%%') or (bzyqb.by5 like '%%"+keyword+"%%') or (bzyqb.by6 like '%%"+keyword+"%%') or (bzyqb.by7 like '%%"+keyword+"%%') or (bzyqb.bzlrrq like '%%" + \
-            keyword+"%%') or (bzyqb.bzlrry like '%%"+keyword+"%%') or (bzyqb.ccbh like '%%"+keyword+"%%') or (bzyqb.clfw like '%%"+keyword+"%%') or (bzyqb.dj like '%%"+keyword+"%%') or (bzyqb.dwbh in (select sid from rjsydwb where dwmc like '%%"+keyword+"%%')) or (bzyqb.dyxz like '%%"+keyword+"%%') or (bzyqb.fdz like '%%"+keyword+"%%') or (bzyqb.glsj like '%%"+keyword+"%%') or (bzyqb.jddw1 like '%%"+keyword+"%%') or (bzyqb.jddw3 like '%%"+keyword+"%%') or (bzyqb.jddw4 like '%%"+keyword+"%%') or ((case when jddw2='3' then  bzyqb.jdsj1 else  bzyqsyb_max_view.jdrq end) like '%%"+keyword+"%%') or ((case when jddw2='3' then bzyqb.jdsj2 else  bzyqsyb_max_view.jdjg  end)   like '%%"+keyword+"%%') or (bzyqb.jdsj3 like '%%" + \
-            keyword+"%%') or (bzyqb.ksdm like '%%"+keyword+"%%') or (bzyqb.qhgg like '%%"+keyword+"%%') or (bzyqb.yjts like '%%"+keyword+"%%') or (bzyqb.yqbh like '%%"+keyword+"%%') or (bzyqb.yqmc like '%%"+keyword+"%%') or (bzyqb.yqmc1 like '%%"+keyword+"%%') or (bzyqb.yqmcyw like '%%"+keyword+"%%') or ((case when jddw2='3' then bzyqb.yqrq else  bzyqsyb_max_view.yxrq end) like '%%" + \
-            keyword+"%%') or ((case when jddw2='3' then bzyqb.zsh1 else  bzyqsyb_max_view.zsbh end)  like '%%"+keyword+"%%') or (bzyqb.zsh3 like '%%"+keyword+"%%') or (bzyqb.zzc like '%%" + \
-            keyword + \
-            "%%'))) and (isnull(zsh4,'') not in ('3','5','1')) and (isnull(bzyqb.jddw2,'')<>'3') and (isnull(bzyqb.jddw2,'')<>'4') order by bzyqb.yqbh asc"
-        # 假设请求体是一个msgpack对象，你需要提供具体的msgpack数据
-        data = {
-            "datasource":"xdamis",
-            "list": [{
-                'id': 'main',
-            'sql': {
-                'script': sql_query,
-            },
-            }]}
-
-        # 将数据打包成msgpack格式
-        msgpack_data = msgpack.packb(data, use_bin_type=True)
-
-        # 发送POST请求
-        response = requests.post(url, headers=headers, data=msgpack_data)
-        content = response.content
-        # 检查是否需要解压
-        if content.startswith(b'x\x9c'):  # zlib 压缩数据的常见前缀
-            try:
-                content = zlib.decompress(content)
-                # print("解压后的数据：", content)
-            except Exception as e:
-                print("解压失败：", e)
-
-        # 解码msgpack数据
-        decoded_content = msgpack.unpackb(content, raw=False, use_list=False, strict_map_key=False)
-        return decoded_content
-    
