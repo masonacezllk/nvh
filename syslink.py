@@ -22,48 +22,47 @@ class SysLink:
         login_flag = False
         login_msg=''
 
-        try:
-            # 生成验证码
-            captchIamgeUrl = f'{SYS_BASE_URL}/ssiboot/admin/captchaImage'
-            captchHost = SYS_BASE_URL.replace('http://', '')
-            captchReferer = f'{SYS_BASE_URL}/'
-            captchIamgeHead = self.sysHeadGen(None, None, captchHost, captchReferer, 'undefined', '/login',
-                                              f'{SYS_BASE_URL}/#/login')
-            captchIamgeRes = requests.get(
-                captchIamgeUrl, headers=captchIamgeHead, timeout=10)
-            captchIamgeText = json.loads(captchIamgeRes.text)
+        # try:
+        # 生成验证码
+        captchIamgeUrl = f'{SYS_BASE_URL}/ssiboot/admin/captchaImage'
+        captchHost = SYS_BASE_URL.replace('http://', '')
+        captchReferer = f'{SYS_BASE_URL}/'
+        captchIamgeHead = self.sysHeadGen(None, None, captchHost, captchReferer, 'undefined', '/login',
+                                            f'{SYS_BASE_URL}/#/login')
+        captchIamgeRes = requests.get(
+            captchIamgeUrl, headers=captchIamgeHead, timeout=10)
+        captchIamgeText = json.loads(captchIamgeRes.text)
 
-            # 登录任务单系统
-            loginUrl = f'{SYS_BASE_URL}/ssiboot/admin/login'
+        # 登录任务单系统
+        loginUrl = f'{SYS_BASE_URL}/ssiboot/admin/login'
 
-            passwordo = passwordin + datetime.now().strftime('%Y%m%d')
-            password = str(base64.b64encode(
-                bytes(passwordo, 'utf-8')), encoding='utf-8')
-            code = captchIamgeText['data']['uuid']
-            uuid = captchIamgeText['data']['uuid']
+        passwordo = passwordin + datetime.now().strftime('%Y%m%d')
+        password = str(base64.b64encode(
+            bytes(passwordo, 'utf-8')), encoding='utf-8')
+        code = captchIamgeText['data']['uuid']
+        uuid = captchIamgeText['data']['uuid']
 
-            loginJson = {'code': code,
-                         'username': username,
-                         'password': password,
-                         'uuid': uuid}
+        loginJson = {'code': code,
+                        'username': username,
+                        'password': password,
+                        'uuid': uuid}
 
-            loginRes = requests.post(loginUrl, json=loginJson, timeout=10)
+        loginRes = requests.post(loginUrl, json=loginJson, timeout=10)
 
-            loginText = json.loads(loginRes.text)
-            login_msg=loginText['msg']
-            st.write(loginText)
-            if loginText['code'] == 200:
-                login_flag = True
-                loginAuthorization = loginText['data']
-                self.loginAuthorization = loginAuthorization
-                task_number_list, task_result = self.get_task_list(self.loginAuthorization, username)
-            else:
-                login_flag = False
-                print(loginText['msg'])
-        except:
+        loginText = json.loads(loginRes.text)
+        login_msg=loginText['msg']
+        if loginText['code'] == 200:
+            login_flag = True
+            loginAuthorization = loginText['data']
+            self.loginAuthorization = loginAuthorization
+            task_number_list, task_result = self.get_task_list(self.loginAuthorization, username)
+        else:
             login_flag = False
-            login_msg='任务单系统登录失败，检查中台系统网络连接'
-            print('任务单系统登录失败，检查中台系统网络连接')
+            print(loginText['msg'])
+        # except:
+        #     login_flag = False
+        #     login_msg='任务单系统登录失败，检查中台系统网络连接'
+        #     print('任务单系统登录失败，检查中台系统网络连接')
 
         return loginAuthorization, task_number_list, task_result, login_flag,login_msg
 
